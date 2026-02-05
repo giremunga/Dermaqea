@@ -1,12 +1,17 @@
 import { Link, useRouter } from 'expo-router';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Animated, Dimensions } from 'react-native';
-import { useEffect, useRef } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Animated, Dimensions, useWindowDimensions } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
 export default function LandingPage() {
   const router = useRouter();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const [currentPage, setCurrentPage] = useState(0);
+  // DEBUG: force the horizontal pager to show on all devices when true.
+  // Set to `false` after debugging.
+  const FORCE_PAGER = true;
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -117,16 +122,12 @@ export default function LandingPage() {
     },
   ];
 
-  return (
-    <ScrollView 
-      style={styles.container}
-      showsVerticalScrollIndicator={false}
-      bounces={true}
-    >
-      {/* Hero Section with Gradient */}
+  // Helper renderers so we can reuse sections inside pager pages
+  function renderHero() {
+    return (
       <LinearGradient
         colors={['#d4edda', '#e8f5e9', '#f1f8e9']}
-        style={styles.hero}
+        style={[styles.hero, { paddingTop: 60, paddingBottom: 40 }]}
       >
         <Animated.View
           style={[
@@ -140,12 +141,12 @@ export default function LandingPage() {
           <View style={styles.badge}>
             <Text style={styles.badgeText}>🌿 AI-Powered</Text>
           </View>
-          
+
           <Text style={styles.heroTitle}>
-            Your Personal{'\n'}
+            Your Personal{"\n"}
             <Text style={styles.heroTitleAccent}>Skin Analysis</Text>
           </Text>
-          
+
           <Text style={styles.heroSubtitle}>
             Discover personalized skincare with AI-powered analysis and verified products
           </Text>
@@ -192,8 +193,11 @@ export default function LandingPage() {
           <Text style={styles.heroFootnote}>No special equipment needed</Text>
         </Animated.View>
       </LinearGradient>
+    );
+  }
 
-      {/* How It Works Section */}
+  function renderFeatures() {
+    return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionLabel}>SIMPLE PROCESS</Text>
@@ -221,10 +225,7 @@ export default function LandingPage() {
                 },
               ]}
             >
-              <LinearGradient
-                colors={feature.gradient as [string, string]}
-                style={styles.featureCard}
-              >
+              <LinearGradient colors={feature.gradient as [string, string]} style={styles.featureCard}>
                 <View style={styles.featureNumber}>
                   <Text style={styles.featureNumberText}>{index + 1}</Text>
                 </View>
@@ -238,13 +239,13 @@ export default function LandingPage() {
           ))}
         </View>
       </View>
+    );
+  }
 
-      {/* DeSci Badge Section */}
+  function renderDeSci() {
+    return (
       <View style={styles.deSciSection}>
-        <LinearGradient
-          colors={['#f1f8e9', '#e8f5e9']}
-          style={styles.deSciCard}
-        >
+        <LinearGradient colors={['#f1f8e9', '#e8f5e9']} style={styles.deSciCard}>
           <View style={styles.deSciIcon}>
             <Text style={{ fontSize: 32 }}>🔬</Text>
           </View>
@@ -254,18 +255,18 @@ export default function LandingPage() {
           </Text>
         </LinearGradient>
       </View>
+    );
+  }
 
-      {/* Final CTA Section */}
+  function renderFinalCta() {
+    return (
       <View style={styles.finalCta}>
-        <LinearGradient
-          colors={['#66bb6a', '#4caf50', '#388e3c']}
-          style={styles.finalCtaGradient}
-        >
+        <LinearGradient colors={['#66bb6a', '#4caf50', '#388e3c']} style={styles.finalCtaGradient}>
           <Text style={styles.finalCtaTitle}>Ready for Better Skin?</Text>
           <Text style={styles.finalCtaSubtitle}>
             Join thousands discovering their perfect skincare routine
           </Text>
-          
+
           <TouchableOpacity
             style={styles.secondaryButton}
             onPress={() => router.push('/camera' as any)}
@@ -291,11 +292,80 @@ export default function LandingPage() {
           </View>
         </LinearGradient>
       </View>
+    );
+  }
+
+  function renderCombined() {
+    return (
+      <View>
+        {renderDeSci()}
+        {renderFinalCta()}
+      </View>
+    );
+  }
+
+  // If the smaller screen dimension is < 768 (portrait phones), treat as mobile so pager shows
+  const isMobile = FORCE_PAGER ? true : Math.min(windowWidth, windowHeight) < 768;
+
+  // (no-op useEffect kept for animations; dimension logging removed)
+  useEffect(() => {}, []);
+
+  if (isMobile) {
+    const pages = [renderHero(), renderFeatures(), renderCombined()];
+    return (
+      <View style={[styles.container, { height: windowHeight }]}> 
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ flexGrow: 1 }}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          bounces={true}
+          onMomentumScrollEnd={(e) => {
+            const idx = Math.round(e.nativeEvent.contentOffset.x / windowWidth);
+            setCurrentPage(idx);
+          }}
+        >
+          {pages.map((page, i) => (
+            <View key={i} style={{ width: windowWidth }}>
+              <ScrollView style={{ height: windowHeight }} contentContainerStyle={{ minHeight: windowHeight }}>
+                {page}
+              </ScrollView>
+            </View>
+          ))}
+        </ScrollView>
+
+        {/* Pagination dots */}
+        <View style={styles.pagerDotsContainer} pointerEvents="none">
+          {pages.map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.pagerDot,
+                currentPage === i ? styles.pagerDotActive : undefined,
+              ]}
+            />
+          ))}
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView 
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+      bounces={true}
+    >
+      {renderHero()}
+      {renderFeatures()}
+      {renderDeSci()}
+      {renderFinalCta()}
 
       {/* Bottom Spacing */}
       <View style={styles.bottomSpacer} />
     </ScrollView>
-  );
+    );
 }
 
 const styles = StyleSheet.create({
@@ -608,7 +678,29 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '600',
   },
+  pagerDotsContainer: {
+    position: 'absolute',
+    bottom: 24,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  pagerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(0,0,0,0.15)',
+    marginHorizontal: 4,
+  },
+  pagerDotActive: {
+    backgroundColor: '#4caf50',
+    width: 10,
+    height: 10,
+  },
   bottomSpacer: {
     height: 40,
   },
+  
 });
